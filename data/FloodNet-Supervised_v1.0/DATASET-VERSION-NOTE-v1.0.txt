@@ -1,0 +1,10 @@
+VERSION NO. = FloodNet-Supervised_v1.0
+##----------------------------------------------
+Features: 
+	1. Dataset is distributed same as FloodNet challenge.
+	2. Masks are same size as original images.
+	3. Total class: 10 ('Background':0, 'Building-flooded':1, 'Building-non-flooded':2, 'Road-flooded':3, 'Road-non-flooded':4, 'Water':5, 'Tree':6, 'Vehicle':7, 'Pool':8, 'Grass':9).
+	4. Total image: 2343 (Train: 1445, Val: 450, Test: 448)
+
+https://github.com/BinaLab/FloodNet-Supervised_v1.0
+Downloaded from https://drive.google.com/drive/folders/1leN9eWVQcvWDVYwNb2GCo5ML_wBEycWD?usp=sharing	
