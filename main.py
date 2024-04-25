@@ -20,8 +20,15 @@ config = {
             # 8, # Pool
         ], dtype=tf.uint32),
     "flooded_threshold": 1/4,
+
+    "num_workers": 4,
+    "batch_size": 16,
+    "num_train_rounds": 20,
+
+    "log_dir": "./log/training",
 }
 
+# ===== data loading =====
 def getDataset(config):
     train_dir = "./data/FloodNet-Supervised_v1.0/train/train-org-img/"
     val_dir = "./data/FloodNet-Supervised_v1.0/val/val-org-img/"
@@ -71,30 +78,25 @@ def getDataset(config):
         train_response, val_response, test_response = loadResponse(config)
 
     # create list of responses in the same order as the image dataset
-    train_labels = [train_response[fname] for fname in train_fnames]
-    val_labels = [val_response[fname] for fname in val_fnames]
-    test_labels = [test_response[fname] for fname in test_fnames]
+    train_labels = [[train_response[fname]] for fname in train_fnames]
+    val_labels = [[val_response[fname]] for fname in val_fnames]
+    test_labels = [[test_response[fname]] for fname in test_fnames]
 
-    # assign the response class to the dataset images
+    # add the responseS to the dataset
     train = tf.data.Dataset.zip((train, tf.data.Dataset.from_tensor_slices(tf.constant(train_labels))))
     val = tf.data.Dataset.zip((val, tf.data.Dataset.from_tensor_slices(tf.constant(val_labels))))
     test = tf.data.Dataset.zip((test, tf.data.Dataset.from_tensor_slices(tf.constant(test_labels))))
 
-    for images, labels in train.take(10):
-        tmp_single_img = tf.divide(images, tf.reduce_max(images))
-        print(labels.numpy())
-        plt.imshow(tmp_single_img)
-        plt.show()
-
-    train = train.take(100)
+    train = train.take(40)
     val = val.take(40)
     test = test.take(40)
+
+    train = train.batch(config["batch_size"])
 
     print(f'Found {train.__len__()} train instances, {val.__len__()} '
         + f'validation instances, and {test.__len__()} test instances.')
 
     return train, val, test
-
 
 def loadResponse(config):
     def isFlooded(img):
@@ -182,13 +184,13 @@ def readResponse(config):
         reader = csv.reader(csvfile)
         next(reader) # omit the header
         for row in reader:
-            train_response[row[0]] = row[1]
+            train_response[row[0]] = (row[1] == "True")
     val_response = dict()
     with open(config["val_response_path"], "r") as csvfile:
         reader = csv.reader(csvfile)
         next(reader) # omit the header
         for row in reader:
-            val_response[row[0]] = row[1]
+            val_response[row[0]] = (row[1] == "True")
     test_response = dict()
     with open(config["test_response_path"], "r") as csvfile:
         reader = csv.reader(csvfile)
@@ -201,20 +203,72 @@ def readResponse(config):
 
     return train_response, val_response, test_response
 
+# ===== partitioning =====
+def partitionTrainData(train, config):
+    train_parts = [train.shard(config["num_workers"], w_idx) for w_idx in range(config["num_workers"])]
+    return train_parts
 
-def createFedModel(train):
+# ===== model creation =====
+def createKerasModel(train, config):
     # load the pre-defined ResNet50 model with 2 output classes and not pre-trained
-    model = tf.keras.applications.resnet50.ResNet50(
-        include_top = True,
-        weights = None,
-        input_shape = (3000, 3000, 3),
-        classes = 2)
+    # model = tf.keras.applications.resnet50.ResNet50(
+    #     include_top = True,
+    #     weights = None,
+    #     input_shape = train.element_spec[0].shape[1:],
+    #     classes = 2)
+
+    model = tf.keras.Sequential([
+        tf.keras.Input(shape=train.element_spec[0].shape[1:]),
+        tf.keras.layers.Conv2D(3, 3, strides=2, padding="same"),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.Activation("relu"),
+        tf.keras.layers.GlobalAveragePooling2D(),
+        tf.keras.layers.Dropout(0.25),
+        tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid)
+    ])
+
+    return model
+
+def createFedModel(train, config):
+    model = createKerasModel(train, config)
 
     fed_model = tff.learning.models.from_keras_model(
         keras_model = model,
-        loss = tf.keras.losses.SparseCategoricalCrossentropy(),
         input_spec = train.element_spec,
-        metrics = [tf.keras.metrics.SparseCategoricalAccuracy()])
+        loss = tf.keras.losses.BinaryCrossentropy(),
+        metrics = [tf.keras.metrics.BinaryCrossentropy()])
+
+    return fed_model
+
+# ===== model training =====
+def trainFedModel(train, fed_train, config):
+    def cfm():
+        return createFedModel(train, config)
+    training_process = tff.learning.algorithms.build_weighted_fed_avg(cfm,
+        client_optimizer_fn=lambda: tf.keras.optimizers.SGD(learning_rate=0.02),
+        server_optimizer_fn=lambda: tf.keras.optimizers.SGD(learning_rate=1.0))
+
+    # set logging for tensorboard visualization
+    logdir = config["log_dir"]
+    try:
+        tf.io.gfile.rmtree(logdir)
+    except tf.errors.NotFoundError as e:
+        pass # no previous result to delete
+    log_summary_writer = tf.summary.create_file_writer(logdir)
+
+    training_state = training_process.initialize()
+
+    with log_summary_writer.as_default():
+        for n_round in range(config["num_train_rounds"]):
+            result = training_process.next(training_state, fed_train)
+            training_state = result.state
+            training_metrics = result.metrics
+
+            for name, value in training_metrics['client_work']['train'].items():
+                tf.summary.scalar(name, value, step=n_round)
+
+                print(f'Training round {n_round}: {training_metrics}')
+
 
 def main(argv):
     try:
@@ -231,7 +285,11 @@ def main(argv):
             config["force_load"] = True
 
     train, val, test = getDataset(config)
-    # createFedModel(train)
+
+    fed_train = partitionTrainData(train, config)
+
+    trainFedModel(train, fed_train, config)
+
 
 if __name__ == '__main__':
     main(sys.argv)
