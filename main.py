@@ -5,8 +5,17 @@ import sys
 import getopt
 import os
 import csv
+from enum import Enum
+import random
+
+class PartitioningScheme(Enum):
+    RANGE       = 1
+    RANDOM      = 2
+    ROUND_ROBIN = 3
 
 config = {
+    "seed": 13,
+
     "force_load": False,
 
     "train_response_path": "./data/train_response.csv",
@@ -21,9 +30,11 @@ config = {
         ], dtype=tf.uint32),
     "flooded_threshold": 1/4,
 
+    "part_scheme": PartitioningScheme.ROUND_ROBIN,
     "num_workers": 4,
-    "batch_size": 16,
-    "num_train_rounds": 20,
+    "batch_size": 6,
+
+    "num_train_rounds": 5,
 
     "log_dir": "./log/training",
 }
@@ -87,14 +98,12 @@ def getDataset(config):
     val = tf.data.Dataset.zip((val, tf.data.Dataset.from_tensor_slices(tf.constant(val_labels))))
     test = tf.data.Dataset.zip((test, tf.data.Dataset.from_tensor_slices(tf.constant(test_labels))))
 
-    train = train.take(40)
+    train = train.take(250)
     val = val.take(40)
     test = test.take(40)
 
-    train = train.batch(config["batch_size"])
-
-    print(f'Found {train.__len__()} train instances, {val.__len__()} '
-        + f'validation instances, and {test.__len__()} test instances.')
+    print(f'Found {train.cardinality().numpy()} train instances, {val.cardinality().numpy()} '
+        + f'validation instances, and {test.cardinality().numpy()} test instances.')
 
     return train, val, test
 
@@ -109,6 +118,7 @@ def loadResponse(config):
         return tf.greater(flooded_count, tf.cast(tf.multiply(tf.cast(tf.size(img), tf.float32),
                 config["flooded_threshold"]), tf.uint32))
 
+    # read the response label images from disk
     train_labels_dir = "./data/FloodNet-Supervised_v1.0/train/train-label-img/"
     val_labels_dir = "./data/FloodNet-Supervised_v1.0/val/val-label-img/"
     test_labels_dir = "./data/FloodNet-Supervised_v1.0/test/test-label-img/"
@@ -157,6 +167,7 @@ def loadResponse(config):
     val_response = dict(zip(val_fnames, val_response))
     test_response = dict(zip(test_fnames, test_response))
 
+    # write the computed binary responses to disk for later usage
     with open(config["train_response_path"], "w") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["fname", "response"])
@@ -205,7 +216,28 @@ def readResponse(config):
 
 # ===== partitioning =====
 def partitionTrainData(train, config):
-    train_parts = [train.shard(config["num_workers"], w_idx) for w_idx in range(config["num_workers"])]
+    n_workers = config["num_workers"]
+    match config["part_scheme"]:
+        case PartitioningScheme.RANGE:
+            train_parts = partitionTrainDataRange(train, n_workers)
+            return train_parts
+        case PartitioningScheme.RANDOM:
+            train.shuffle(train.cardinality(), seed=config["seed"])
+            train_parts = partitionTrainDataRange(train, n_workers)
+            return train_parts
+        case PartitioningScheme.ROUND_ROBIN:
+            train_parts = [train.shard(n_workers, w_idx) for w_idx in range(n_workers)]
+            return train_parts
+
+def partitionTrainDataRange(train, n_workers):
+    n_rows = train.cardinality().numpy()
+    distribute_remainder = lambda idx: 1 if idx < (n_rows % n_workers) else 0
+    train_parts = list()
+    num_elements = 0
+    for w_idx in range(n_workers):
+        train.skip(num_elements)
+        num_elements = (n_rows // n_workers) + distribute_remainder(w_idx)
+        train_parts.append(train.take(num_elements))
     return train_parts
 
 # ===== model creation =====
@@ -244,16 +276,17 @@ def createFedModel(train, config):
 def trainFedModel(train, fed_train, config):
     def cfm():
         return createFedModel(train, config)
+
     training_process = tff.learning.algorithms.build_weighted_fed_avg(cfm,
         client_optimizer_fn=lambda: tf.keras.optimizers.SGD(learning_rate=0.02),
         server_optimizer_fn=lambda: tf.keras.optimizers.SGD(learning_rate=1.0))
 
     # set logging for tensorboard visualization
-    logdir = config["log_dir"]
+    logdir = config["log_dir"] # delete any previous results
     try:
         tf.io.gfile.rmtree(logdir)
     except tf.errors.NotFoundError as e:
-        pass # no previous result to delete
+        pass # ignore if no previous results to delete
     log_summary_writer = tf.summary.create_file_writer(logdir)
 
     training_state = training_process.initialize()
@@ -267,8 +300,7 @@ def trainFedModel(train, fed_train, config):
             for name, value in training_metrics['client_work']['train'].items():
                 tf.summary.scalar(name, value, step=n_round)
 
-                print(f'Training round {n_round}: {training_metrics}')
-
+            print(f'Training round {n_round}: {training_metrics}')
 
 def main(argv):
     try:
@@ -284,10 +316,15 @@ def main(argv):
         elif opt in ("-l", "--forceload"):
             config["force_load"] = True
 
+    # obtain the dataset (either load or compute the response labels)
     train, val, test = getDataset(config)
 
+    # preprocess the dataset for federated training
     fed_train = partitionTrainData(train, config)
+    train = train.batch(config["batch_size"])
+    fed_train = [ft.batch(config["batch_size"]) for ft in fed_train]
 
+    # create and train the model
     trainFedModel(train, fed_train, config)
 
 
