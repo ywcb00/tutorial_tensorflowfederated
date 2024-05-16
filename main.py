@@ -6,7 +6,6 @@ import getopt
 import os
 import csv
 from enum import Enum
-import random
 
 class PartitioningScheme(Enum):
     RANGE       = 1
@@ -31,10 +30,11 @@ config = {
     "flooded_threshold": 1/4,
 
     "part_scheme": PartitioningScheme.ROUND_ROBIN,
-    "num_workers": 4,
-    "batch_size": 6,
+    "num_workers": 2,
+    "batch_size": 2,
 
-    "num_train_rounds": 5,
+    "model": "c64_c32_avg_dr50_dr25",
+    "num_train_rounds": 3,
 
     "log_dir": "./log/training",
 }
@@ -83,7 +83,8 @@ def getDataset(config):
     val_response = dict()
     test_response = dict()
     if(not config["force_load"] and os.path.exists(config["train_response_path"])
-        and os.path.exists(config["val_response_path"]) and os.path.exists(config["test_response_path"])):
+        and os.path.exists(config["val_response_path"])
+        and os.path.exists(config["test_response_path"])):
         train_response, val_response, test_response = readResponse(config)
     else:
         train_response, val_response, test_response = loadResponse(config)
@@ -94,12 +95,15 @@ def getDataset(config):
     test_labels = [[test_response[fname]] for fname in test_fnames]
 
     # add the responseS to the dataset
-    train = tf.data.Dataset.zip((train, tf.data.Dataset.from_tensor_slices(tf.constant(train_labels))))
-    val = tf.data.Dataset.zip((val, tf.data.Dataset.from_tensor_slices(tf.constant(val_labels))))
-    test = tf.data.Dataset.zip((test, tf.data.Dataset.from_tensor_slices(tf.constant(test_labels))))
+    train = tf.data.Dataset.zip((train,
+        tf.data.Dataset.from_tensor_slices(tf.constant(train_labels))))
+    val = tf.data.Dataset.zip((val,
+        tf.data.Dataset.from_tensor_slices(tf.constant(val_labels))))
+    test = tf.data.Dataset.zip((test,
+        tf.data.Dataset.from_tensor_slices(tf.constant(test_labels))))
 
     train = train.take(250)
-    val = val.take(40)
+    val = val.take(100)
     test = test.take(40)
 
     print(f'Found {train.cardinality().numpy()} train instances, {val.cardinality().numpy()} '
@@ -215,32 +219,179 @@ def readResponse(config):
     return train_response, val_response, test_response
 
 # ===== partitioning =====
-def partitionTrainData(train, config):
+def partitionData(data, config):
     n_workers = config["num_workers"]
     match config["part_scheme"]:
         case PartitioningScheme.RANGE:
-            train_parts = partitionTrainDataRange(train, n_workers)
-            return train_parts
+            data_parts = partitionDataRange(data, n_workers)
+            return data_parts
         case PartitioningScheme.RANDOM:
-            train.shuffle(train.cardinality(), seed=config["seed"])
-            train_parts = partitionTrainDataRange(train, n_workers)
-            return train_parts
+            data.shuffle(data.cardinality(), seed=config["seed"])
+            data_parts = partitionDataRange(data, n_workers)
+            return data_parts
         case PartitioningScheme.ROUND_ROBIN:
-            train_parts = [train.shard(n_workers, w_idx) for w_idx in range(n_workers)]
-            return train_parts
+            data_parts = [data.shard(n_workers, w_idx) for w_idx in range(n_workers)]
+            return data_parts
 
-def partitionTrainDataRange(train, n_workers):
-    n_rows = train.cardinality().numpy()
+def partitionDataRange(data, n_workers):
+    n_rows = data.cardinality().numpy()
     distribute_remainder = lambda idx: 1 if idx < (n_rows % n_workers) else 0
-    train_parts = list()
+    data_parts = list()
     num_elements = 0
     for w_idx in range(n_workers):
-        train.skip(num_elements)
+        data.skip(num_elements)
         num_elements = (n_rows // n_workers) + distribute_remainder(w_idx)
-        train_parts.append(train.take(num_elements))
-    return train_parts
+        data_parts.append(data.take(num_elements))
+    return data_parts
 
 # ===== model creation =====
+def buildKerasModelLayers(keras_model, config):
+    # NOTE: set the initializers in order to ensure reproducibility
+    match config["model"]:
+        case "c10_avg_dr25":
+            # first layer is the input
+            keras_model.add(tf.keras.layers.Conv2D(10, 10, strides=5, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.BatchNormalization(
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones(),
+                moving_mean_initializer=tf.keras.initializers.Zeros(),
+                moving_variance_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.GlobalAveragePooling2D())
+            keras_model.add(tf.keras.layers.Dropout(0.25, seed=config["seed"]))
+            keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+        case "c20_c10_avg_dr25":
+            # first layer is the input
+            keras_model.add(tf.keras.layers.Conv2D(20, 10, strides=10, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.BatchNormalization(
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones(),
+                moving_mean_initializer=tf.keras.initializers.Zeros(),
+                moving_variance_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.Conv2D(10, 8, strides=10, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.BatchNormalization(
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones(),
+                moving_mean_initializer=tf.keras.initializers.Zeros(),
+                moving_variance_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.GlobalAveragePooling2D())
+            keras_model.add(tf.keras.layers.Dropout(0.25, seed=config["seed"]))
+            keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+        case "c40_c20_c10_avg_dr25":
+            # first layer is the input
+            keras_model.add(tf.keras.layers.Conv2D(40, 10, strides=5, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.BatchNormalization(
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones(),
+                moving_mean_initializer=tf.keras.initializers.Zeros(),
+                moving_variance_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.Conv2D(20, 10, strides=10, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.BatchNormalization(
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones(),
+                moving_mean_initializer=tf.keras.initializers.Zeros(),
+                moving_variance_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.Conv2D(10, 8, strides=10, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.BatchNormalization(
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones(),
+                moving_mean_initializer=tf.keras.initializers.Zeros(),
+                moving_variance_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.GlobalAveragePooling2D())
+            keras_model.add(tf.keras.layers.Dropout(0.25, seed=config["seed"]))
+            keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+        case "c32_c64_c16_avg_fl_dr50":
+            # first layer is the input
+            keras_model.add(tf.keras.layers.Conv2D(32, (11, 11), strides=2, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.BatchNormalization(
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones(),
+                moving_mean_initializer=tf.keras.initializers.Zeros(),
+                moving_variance_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+            keras_model.add(tf.keras.layers.Conv2D(64, (11, 11), strides=3, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.BatchNormalization(
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones(),
+                moving_mean_initializer=tf.keras.initializers.Zeros(),
+                moving_variance_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+            keras_model.add(tf.keras.layers.Conv2D(16, (11, 11), strides=3, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.BatchNormalization(
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones(),
+                moving_mean_initializer=tf.keras.initializers.Zeros(),
+                moving_variance_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+            keras_model.add(tf.keras.layers.GlobalAveragePooling2D())
+            keras_model.add(tf.keras.layers.Dropout(0.5, seed=config["seed"]))
+            keras_model.add(tf.keras.layers.Flatten())
+            keras_model.add(tf.keras.layers.Dense(64, activation=tf.keras.activations.sigmoid,
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+        case "c64_c32_avg_dr50_dr25":
+            # first layer is the input
+            keras_model.add(tf.keras.layers.Conv2D(64, (5, 5), strides=3, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.GroupNormalization(groups=16,
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+            keras_model.add(tf.keras.layers.Conv2D(32, (5, 5), strides=3, padding="same",
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.GroupNormalization(groups=16,
+                beta_initializer=tf.keras.initializers.Zeros(),
+                gamma_initializer=tf.keras.initializers.Ones()))
+            keras_model.add(tf.keras.layers.Activation("relu"))
+            keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+            keras_model.add(tf.keras.layers.GlobalAveragePooling2D())
+            keras_model.add(tf.keras.layers.Dropout(0.5, seed=config["seed"]))
+            keras_model.add(tf.keras.layers.Dense(64, activation=tf.keras.activations.relu,
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+            keras_model.add(tf.keras.layers.Dropout(0.25, seed=config["seed"]))
+            keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
+                kernel_initializer=tf.keras.initializers.GlorotUniform(seed=config["seed"]),
+                bias_initializer=tf.keras.initializers.Zeros()))
+
 def createKerasModel(train, config):
     # load the pre-defined ResNet50 model with 2 output classes and not pre-trained
     # model = tf.keras.applications.resnet50.ResNet50(
@@ -249,15 +400,10 @@ def createKerasModel(train, config):
     #     input_shape = train.element_spec[0].shape[1:],
     #     classes = 2)
 
-    model = tf.keras.Sequential([
-        tf.keras.Input(shape=train.element_spec[0].shape[1:]),
-        tf.keras.layers.Conv2D(3, 3, strides=2, padding="same"),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Activation("relu"),
-        tf.keras.layers.GlobalAveragePooling2D(),
-        tf.keras.layers.Dropout(0.25),
-        tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid)
-    ])
+    # construct a sequential model
+    model = tf.keras.Sequential()
+    model.add(tf.keras.Input(shape=train.element_spec[0].shape[1:]))
+    buildKerasModelLayers(model, config)
 
     return model
 
@@ -293,14 +439,46 @@ def trainFedModel(train, fed_train, config):
 
     with log_summary_writer.as_default():
         for n_round in range(config["num_train_rounds"]):
-            result = training_process.next(training_state, fed_train)
-            training_state = result.state
-            training_metrics = result.metrics
+            training_result = training_process.next(training_state, fed_train)
+            training_state = training_result.state
+            training_metrics = training_result.metrics
 
             for name, value in training_metrics['client_work']['train'].items():
                 tf.summary.scalar(name, value, step=n_round)
 
             print(f'Training round {n_round}: {training_metrics}')
+
+    return training_process, training_result
+
+def getTrainedKerasModel(train, training_process, training_result, config):
+    keras_model = createKerasModel(train, config)
+    keras_model.compile(loss = tf.keras.losses.BinaryCrossentropy(),
+        metrics = [tf.keras.metrics.BinaryCrossentropy()])
+    model_weights = training_process.get_model_weights(training_result.state)
+    model_weights.assign_weights_to(keras_model)
+    return keras_model
+
+# ===== model inference =====
+def predict(train, data, training_process, training_result, config):
+    keras_model = getTrainedKerasModel(train, training_process, training_result, config)
+    predictions = keras_model.predict(data)
+    return predictions
+
+# ===== model evaluation =====
+def evaluateDecentralized(train, fed_val, training_process, training_result, config):
+    def cfm():
+        return createFedModel(train, config)
+
+    evaluation_process = tff.learning.build_federated_evaluation(cfm)
+    model_weights = training_process.get_model_weights(training_result.state)
+    evaluation_metrics = evaluation_process(model_weights, fed_val)
+    return evaluation_metrics
+
+def evaluateCentralized(train, val, training_process, training_result, config):
+    keras_model = getTrainedKerasModel(train, training_process, training_result, config)
+    evaluation_metrics = keras_model.evaluate(val)
+    return evaluation_metrics
+
 
 def main(argv):
     try:
@@ -319,13 +497,27 @@ def main(argv):
     # obtain the dataset (either load or compute the response labels)
     train, val, test = getDataset(config)
 
-    # preprocess the dataset for federated training
-    fed_train = partitionTrainData(train, config)
-    train = train.batch(config["batch_size"])
+    # preprocess the dataset for federated execution
+    fed_train = partitionData(train, config)
     fed_train = [ft.batch(config["batch_size"]) for ft in fed_train]
+    fed_val = partitionData(val, config)
+    fed_val = [fv.batch(config["batch_size"]) for fv in fed_val]
+    train = train.batch(config["batch_size"])
+    val = val.batch(config["batch_size"])
+    test = test.batch(config["batch_size"])
 
     # create and train the model
-    trainFedModel(train, fed_train, config)
+    training_process, training_result = trainFedModel(train, fed_train, config)
+
+    print(predict(train, train, training_process, training_result, config))
+
+    # evaluate the model
+    evaluation_metrics = evaluateDecentralized(train, fed_val,
+        training_process, training_result, config)
+    print(evaluation_metrics)
+    evaluation_metrics = evaluateCentralized(train, val, training_process,
+        training_result, config)
+    print(evaluation_metrics)
 
 
 if __name__ == '__main__':
