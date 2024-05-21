@@ -36,10 +36,36 @@ config = {
     "batch_size": 2,
 
     "model": "c64_c32_avg_dr50_dr25",
-    "num_train_rounds": 3,
+    "num_train_rounds": 10,
 
     "log_dir": "./log/training",
 }
+
+def trainLocalKeras(dataset, config):
+    # ===== Local Training =====
+    # create and fit the local keras model
+    keras_model = KerasModel(config)
+    keras_model.fit(dataset)
+
+    print(keras_model.predict(dataset.train))
+
+    # evaluate the model
+    evaluation_metrics = keras_model.evaluate(dataset.val)
+    print(evaluation_metrics)
+
+def trainFedKeras(dataset, fed_dataset, config):
+    # ===== Federated Training =====
+    # create and fit the federated model
+    fed_keras_model = FedKerasModel(config)
+    fed_keras_model.fit(fed_dataset)
+
+    print(fed_keras_model.predict(dataset.train))
+
+    # evaluate the model
+    evaluation_metrics = fed_keras_model.evaluate(fed_dataset.val)
+    print(evaluation_metrics)
+    evaluation_metrics = fed_keras_model.evaluateCentralized(dataset.val)
+    print(evaluation_metrics)
 
 def main(argv):
     try:
@@ -66,30 +92,8 @@ def main(argv):
 
     dataset.batch()
 
-    # ===== Local Training =====
-    # create and fit the local keras model
-    keras_model = KerasModel(config)
-    keras_model.fit(dataset)
-
-    print(keras_model.predict(dataset.train))
-
-    # evaluate the model
-    evaluation_metrics = keras_model.evaluate(dataset.val)
-    print(evaluation_metrics)
-
-
-    # ===== Federated Training =====
-    # create and fit the federated model
-    fed_keras_model = FedKerasModel(config)
-    fed_keras_model.fit(fed_dataset)
-
-    print(fed_keras_model.predict(dataset.train))
-
-    # evaluate the model
-    evaluation_metrics = fed_keras_model.evaluate(fed_dataset.val)
-    print(evaluation_metrics)
-    evaluation_metrics = fed_keras_model.evaluateCentralized(dataset.val)
-    print(evaluation_metrics)
+    trainLocalKeras(dataset, config)
+    trainFedKeras(dataset, fed_dataset, config)
 
 
 if __name__ == '__main__':

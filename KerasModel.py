@@ -15,12 +15,22 @@ class KerasModel(IModel):
         self.model.compile(optimizer = tf.keras.optimizers.SGD(learning_rate=0.02),
             loss = tf.keras.losses.BinaryCrossentropy(),
             metrics = [tf.keras.metrics.BinaryCrossentropy()])
+
+        # set logging for tensorboard visualization
+        logdir = self.config["log_dir"] # delete any previous results
+        try:
+            tf.io.gfile.rmtree(logdir)
+        except tf.errors.NotFoundError as e:
+            pass # ignore if no previous results to delete
+        logging_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
+
         self.fit_history = self.model.fit(x=dataset.train,
             y=None, # already in the dataset
             batch_size=None, # already in the dataset
-            epochs=1,
+            epochs=self.config["num_train_rounds"],
             validation_data=None, # we have a separate validation split
-            shuffle=False)
+            shuffle=False,
+            callbacks=[logging_callback])
 
     def predict(self, data):
         return self.predictKerasModel(self.model, data)
