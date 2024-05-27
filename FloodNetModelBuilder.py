@@ -9,7 +9,7 @@ class FloodNetModelBuilder(IModelBuilder):
         #     include_top = True,
         #     weights = None,
         #     input_shape = data.element_spec[0].shape[1:],
-        #     classes = 2)
+        #     classes = 1)
 
         # construct a sequential model
         model = tf.keras.Sequential()
@@ -161,6 +161,123 @@ class FloodNetModelBuilder(IModelBuilder):
                     kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
                     bias_initializer=tf.keras.initializers.Zeros()))
                 keras_model.add(tf.keras.layers.Dropout(0.25, seed=self.config["seed"]))
+                keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+            case "c64_c32_c32_avg_dr50_dr25":
+                # first layer is the input
+                keras_model.add(tf.keras.layers.Conv2D(64, (11, 11), strides=7, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.GroupNormalization(groups=16,
+                    beta_initializer=tf.keras.initializers.Zeros(),
+                    gamma_initializer=tf.keras.initializers.Ones()))
+                keras_model.add(tf.keras.layers.Activation("relu"))
+                keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+                keras_model.add(tf.keras.layers.Conv2D(32, (7, 7), strides=3, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.GroupNormalization(groups=16,
+                    beta_initializer=tf.keras.initializers.Zeros(),
+                    gamma_initializer=tf.keras.initializers.Ones()))
+                keras_model.add(tf.keras.layers.Activation("relu"))
+                keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+                keras_model.add(tf.keras.layers.Conv2D(32, (5, 5), strides=3, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.GroupNormalization(groups=16,
+                    beta_initializer=tf.keras.initializers.Zeros(),
+                    gamma_initializer=tf.keras.initializers.Ones()))
+                keras_model.add(tf.keras.layers.Activation("relu"))
+                keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+                keras_model.add(tf.keras.layers.GlobalAveragePooling2D())
+                keras_model.add(tf.keras.layers.Dropout(0.5, seed=self.config["seed"]))
+                keras_model.add(tf.keras.layers.Dense(64, activation=tf.keras.activations.relu,
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.Dropout(0.25, seed=self.config["seed"]))
+                keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+            case "c96_c64_c32_avg_dr50_dr25":
+                # first layer is the input
+                keras_model.add(tf.keras.layers.Conv2D(96, (11, 11), strides=3, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.GroupNormalization(groups=16,
+                    beta_initializer=tf.keras.initializers.Zeros(),
+                    gamma_initializer=tf.keras.initializers.Ones()))
+                keras_model.add(tf.keras.layers.Activation("relu"))
+                keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+                keras_model.add(tf.keras.layers.Conv2D(64, (11, 11), strides=3, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.GroupNormalization(groups=16,
+                    beta_initializer=tf.keras.initializers.Zeros(),
+                    gamma_initializer=tf.keras.initializers.Ones()))
+                keras_model.add(tf.keras.layers.Activation("relu"))
+                keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+                keras_model.add(tf.keras.layers.Conv2D(32, (7, 7), strides=3, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.GroupNormalization(groups=16,
+                    beta_initializer=tf.keras.initializers.Zeros(),
+                    gamma_initializer=tf.keras.initializers.Ones()))
+                keras_model.add(tf.keras.layers.Activation("relu"))
+                keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+                keras_model.add(tf.keras.layers.GlobalAveragePooling2D())
+                keras_model.add(tf.keras.layers.Dropout(0.5, seed=self.config["seed"]))
+                keras_model.add(tf.keras.layers.Dense(64, activation=tf.keras.activations.relu,
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.Dropout(0.25, seed=self.config["seed"]))
+                keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+            case "c96_c32_dr25_dr50":
+                # first layer is the input
+                keras_model.add(tf.keras.layers.Conv2D(96, (17, 17), strides=5, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.GroupNormalization(groups=16,
+                    beta_initializer=tf.keras.initializers.Zeros(),
+                    gamma_initializer=tf.keras.initializers.Ones()))
+                keras_model.add(tf.keras.layers.Activation("relu"))
+                keras_model.add(tf.keras.layers.MaxPool2D((5, 5)))
+                keras_model.add(tf.keras.layers.Conv2D(32, (11, 11), strides=3, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.GroupNormalization(groups=8,
+                    beta_initializer=tf.keras.initializers.Zeros(),
+                    gamma_initializer=tf.keras.initializers.Ones()))
+                keras_model.add(tf.keras.layers.Activation("relu"))
+                keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+                keras_model.add(tf.keras.layers.Dropout(0.25, seed=self.config["seed"]))
+                keras_model.add(tf.keras.layers.Flatten())
+                keras_model.add(tf.keras.layers.Dense(64, activation=tf.keras.activations.relu,
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+                keras_model.add(tf.keras.layers.Dropout(0.5, seed=self.config["seed"]))
+                keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
+            case "c96_c32_dr25":
+                # first layer is the input
+                keras_model.add(tf.keras.layers.Conv2D(96, (17, 17), strides=5, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros(),
+                    activation=tf.keras.activations.relu))
+                keras_model.add(tf.keras.layers.MaxPool2D((5, 5)))
+                keras_model.add(tf.keras.layers.Conv2D(32, (5, 5), strides=3, padding="same",
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros(),
+                    activation=tf.keras.activations.relu))
+                keras_model.add(tf.keras.layers.MaxPool2D((3, 3)))
+                keras_model.add(tf.keras.layers.Dropout(0.25, seed=self.config["seed"]))
+                keras_model.add(tf.keras.layers.Flatten())
+                keras_model.add(tf.keras.layers.Dense(64, activation=tf.keras.activations.relu,
+                    kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
+                    bias_initializer=tf.keras.initializers.Zeros()))
                 keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
                     kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
                     bias_initializer=tf.keras.initializers.Zeros()))

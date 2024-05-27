@@ -13,7 +13,8 @@ class FedKerasModel(IModel):
             keras_model = keras_model,
             input_spec = fed_data[0].element_spec,
             loss = tf.keras.losses.BinaryCrossentropy(),
-            metrics = [tf.keras.metrics.BinaryCrossentropy()])
+            metrics = [tf.keras.metrics.BinaryCrossentropy(),
+                tf.keras.metrics.BinaryAccuracy()])
         return fed_model
 
     def fit(self, fed_dataset):
@@ -56,7 +57,8 @@ class FedKerasModel(IModel):
     def getTrainedKerasModel(self, data, state, config):
         keras_model = KerasModel.createKerasModel(data, config)
         keras_model.compile(loss = tf.keras.losses.BinaryCrossentropy(),
-            metrics = [tf.keras.metrics.BinaryCrossentropy()])
+            metrics = [tf.keras.metrics.BinaryCrossentropy(),
+                tf.keras.metrics.BinaryAccuracy()])
         model_weights = state[0].get_model_weights(state[1].state)
         model_weights.assign_weights_to(keras_model)
         return keras_model

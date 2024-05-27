@@ -12,9 +12,11 @@ class KerasModel(IModel):
 
     def fit(self, dataset):
         self.model = self.createKerasModel(dataset.train, self.config)
-        self.model.compile(optimizer = tf.keras.optimizers.SGD(learning_rate=0.02),
+        self.model.compile(optimizer = tf.keras.optimizers.SGD(
+            learning_rate=self.config["learning_rate"]),
             loss = tf.keras.losses.BinaryCrossentropy(),
-            metrics = [tf.keras.metrics.BinaryCrossentropy()])
+            metrics = [tf.keras.metrics.BinaryCrossentropy(),
+                tf.keras.metrics.BinaryAccuracy()])
 
         # set logging for tensorboard visualization
         logdir = self.config["log_dir"] # delete any previous results

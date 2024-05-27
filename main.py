@@ -33,10 +33,11 @@ config = {
 
     "part_scheme": PartitioningScheme.ROUND_ROBIN,
     "num_workers": 2,
-    "batch_size": 2,
+    "batch_size": 6,
 
-    "model": "c64_c32_avg_dr50_dr25",
+    "model": "c96_c32_dr25",
     "num_train_rounds": 10,
+    "learning_rate": 0.00005,
 
     "log_dir": "./log/training",
 }
@@ -47,11 +48,16 @@ def trainLocalKeras(dataset, config):
     keras_model = KerasModel(config)
     keras_model.fit(dataset)
 
-    print(keras_model.predict(dataset.train))
+    print(keras_model.predict(dataset.train)[1:10])
+    print(list(map(lambda e: e[1], list(dataset.train.as_numpy_iterator())[0:2])))
+
+    print(keras_model.predict(dataset.val)[1:10])
+    print(list(map(lambda e: e[1], list(dataset.val.as_numpy_iterator())[0:2])))
 
     # evaluate the model
     evaluation_metrics = keras_model.evaluate(dataset.val)
     print(evaluation_metrics)
+    return evaluation_metrics
 
 def trainFedKeras(dataset, fed_dataset, config):
     # ===== Federated Training =====
@@ -59,7 +65,7 @@ def trainFedKeras(dataset, fed_dataset, config):
     fed_keras_model = FedKerasModel(config)
     fed_keras_model.fit(fed_dataset)
 
-    print(fed_keras_model.predict(dataset.train))
+    print(fed_keras_model.predict(dataset.train)[1:10])
 
     # evaluate the model
     evaluation_metrics = fed_keras_model.evaluate(fed_dataset.val)
@@ -92,8 +98,46 @@ def main(argv):
 
     dataset.batch()
 
+    # trainFedKeras(dataset, fed_dataset, config)
     trainLocalKeras(dataset, config)
-    trainFedKeras(dataset, fed_dataset, config)
+
+    # model_abbrvs = [
+    #     "c10_avg_dr25",
+    #     "c20_c10_avg_dr25",
+    #     "c40_c20_c10_avg_dr25",
+    #     "c32_c64_c16_avg_fl_dr50",
+    #     "c64_c32_avg_dr50_dr25",
+    #     "c64_c32_c32_avg_dr50_dr25",
+    #     "c96_c64_c32_avg_dr50_dr25"
+    # ]
+
+    # model_evaluations = dict()
+
+    # for ma in model_abbrvs:
+    #     config["model"] = ma
+    #     model_evaluations[ma] = trainLocalKeras(dataset, config)
+
+    # print(model_evaluations)
+
+    # learning_rates = [
+    #     0.1,
+    #     0.01,
+    #     0.001,
+    #     0.0005,
+    #     0.0001,
+    #     0.00005,
+    #     0.00001
+    # ]
+
+    # model_evaluations = dict()
+
+    # for lr in learning_rates:
+    #     print(f'Training with learning rate {lr}')
+    #     config["learning_rate"] = lr
+    #     model_evaluations[lr] = trainLocalKeras(dataset, config)
+
+    # print(model_evaluations)
+
 
 
 if __name__ == '__main__':

@@ -59,17 +59,17 @@ class FloodNetDataset(IDataset):
             train_response, val_response, test_response = self_class.loadResponse(config)
 
         # create list of responses in the same order as the image dataset
-        train_labels = [[train_response[fname]] for fname in train_fnames]
-        val_labels = [[val_response[fname]] for fname in val_fnames]
-        test_labels = [[test_response[fname]] for fname in test_fnames]
+        train_labels = [train_response[fname] for fname in train_fnames]
+        val_labels = [val_response[fname] for fname in val_fnames]
+        test_labels = [test_response[fname] for fname in test_fnames]
 
         # add the responseS to the dataset
         train = tf.data.Dataset.zip((train,
-            tf.data.Dataset.from_tensor_slices(tf.constant(train_labels))))
+            tf.data.Dataset.from_tensor_slices(tf.constant(train_labels), name="response")))
         val = tf.data.Dataset.zip((val,
-            tf.data.Dataset.from_tensor_slices(tf.constant(val_labels))))
+            tf.data.Dataset.from_tensor_slices(tf.constant(val_labels), name="response")))
         test = tf.data.Dataset.zip((test,
-            tf.data.Dataset.from_tensor_slices(tf.constant(test_labels))))
+            tf.data.Dataset.from_tensor_slices(tf.constant(test_labels), name="response")))
 
         train = train.take(250)
         val = val.take(100)
