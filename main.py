@@ -1,8 +1,8 @@
-from IDataset import DatasetID
-from FedDataset import FedDataset, PartitioningScheme
-from FedKerasModel import FedKerasModel
-from KerasModel import KerasModel
-from Utils import Utils
+from dataset.IDataset import DatasetID
+from dataset.FedDataset import FedDataset, PartitioningScheme
+from model.FedKerasModel import FedKerasModel
+from model.KerasModel import KerasModel
+from utils.Utils import Utils
 
 import tensorflow as tf
 import tensorflow_federated as tff

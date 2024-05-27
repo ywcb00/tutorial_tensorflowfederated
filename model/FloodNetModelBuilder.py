@@ -1,4 +1,4 @@
-from IModelBuilder import IModelBuilder
+from model.IModelBuilder import IModelBuilder
 
 import tensorflow as tf
 

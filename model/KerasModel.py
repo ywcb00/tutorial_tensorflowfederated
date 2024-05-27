@@ -1,5 +1,5 @@
-from IModel import IModel
-from Utils import Utils
+from model.IModel import IModel
+from utils.Utils import Utils
 
 import tensorflow as tf
 

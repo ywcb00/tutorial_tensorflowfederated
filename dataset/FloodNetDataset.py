@@ -1,4 +1,4 @@
-from IDataset import IDataset
+from dataset.IDataset import IDataset
 
 import tensorflow as tf
 import os

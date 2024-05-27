@@ -1,6 +1,6 @@
-from IDataset import DatasetID
-from FloodNetDataset import FloodNetDataset
-from FloodNetModelBuilder import FloodNetModelBuilder
+from dataset.IDataset import DatasetID
+from dataset.FloodNetDataset import FloodNetDataset
+from model.FloodNetModelBuilder import FloodNetModelBuilder
 
 class Utils:
     @classmethod

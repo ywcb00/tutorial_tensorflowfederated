@@ -1,6 +1,6 @@
-from IModel import IModel
-from KerasModel import KerasModel
-from Utils import Utils
+from model.IModel import IModel
+from model.KerasModel import KerasModel
+from utils.Utils import Utils
 
 import tensorflow as tf
 import tensorflow_federated as tff
