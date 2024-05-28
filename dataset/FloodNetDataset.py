@@ -5,6 +5,9 @@ import os
 import csv
 
 class FloodNetDataset(IDataset):
+    def __init__(self, config):
+        super().__init__(config, batch_size=2)
+
     def load(self):
         train, val, test = self.getDataset(self.config)
         self.train = train
@@ -71,6 +74,7 @@ class FloodNetDataset(IDataset):
         test = tf.data.Dataset.zip((test,
             tf.data.Dataset.from_tensor_slices(tf.constant(test_labels), name="response")))
 
+        # TODO: reduced dataset only for development purpose
         train = train.take(250)
         val = val.take(100)
         test = test.take(40)

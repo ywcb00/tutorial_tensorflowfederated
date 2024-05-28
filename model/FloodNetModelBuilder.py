@@ -3,6 +3,11 @@ from model.IModelBuilder import IModelBuilder
 import tensorflow as tf
 
 class FloodNetModelBuilder(IModelBuilder):
+    def __init__(self, config):
+        super().__init__(config)
+        self.learning_rate = 0.00005
+        self.model_abbrv = "c96_c32_dr25"
+
     def buildModel(self, data):
         # load the pre-defined ResNet50 model with 2 output classes and not pre-trained
         # model = tf.keras.applications.resnet50.ResNet50(
@@ -20,7 +25,7 @@ class FloodNetModelBuilder(IModelBuilder):
 
     def buildKerasModelLayers(self, keras_model):
         # NOTE: set the initializers in order to ensure reproducibility
-        match self.config["model"]:
+        match self.model_abbrv:
             case "c10_avg_dr25":
                 # first layer is the input
                 keras_model.add(tf.keras.layers.Conv2D(10, 10, strides=5, padding="same",
@@ -281,3 +286,16 @@ class FloodNetModelBuilder(IModelBuilder):
                 keras_model.add(tf.keras.layers.Dense(1, activation=tf.keras.activations.sigmoid,
                     kernel_initializer=tf.keras.initializers.GlorotUniform(seed=self.config["seed"]),
                     bias_initializer=tf.keras.initializers.Zeros()))
+
+    def getLoss(self):
+        return tf.keras.losses.BinaryCrossentropy()
+
+    def getMetrics(self):
+        return [tf.keras.metrics.BinaryCrossentropy(),
+            tf.keras.metrics.BinaryAccuracy()]
+
+    def getLearningRate(self):
+        return self.learning_rate
+
+    def getOptimizer(self):
+        return tf.keras.optimizers.SGD(learning_rate=self.getLearningRate())

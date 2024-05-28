@@ -7,3 +7,19 @@ class IModelBuilder(ABC):
     @abstractmethod
     def buildModel(self):
         pass
+
+    @abstractmethod
+    def getLoss(self):
+        pass
+
+    @abstractmethod
+    def getMetrics(self):
+        pass
+
+    @abstractmethod
+    def getLearningRate(self):
+        pass
+
+    @abstractmethod
+    def getOptimizer(self):
+        pass

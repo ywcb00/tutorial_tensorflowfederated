@@ -17,12 +17,13 @@ class FedDataset():
         self.train = self.partitionData(dataset.train, self.config)
         self.val = self.partitionData(dataset.val, self.config)
         self.test = self.partitionData(dataset.test, self.config)
+        self.batch_size = dataset.batch_size
 
     def batch(self):
         # batch the data partitions
-        self.train = [fp.batch(self.config["batch_size"]) for fp in self.train]
-        self.val = [fp.batch(self.config["batch_size"]) for fp in self.val]
-        self.test = [fp.batch(self.config["batch_size"]) for fp in self.test]
+        self.train = [fp.batch(self.batch_size) for fp in self.train]
+        self.val = [fp.batch(self.batch_size) for fp in self.val]
+        self.test = [fp.batch(self.batch_size) for fp in self.test]
 
     # ===== partitioning =====
     @classmethod

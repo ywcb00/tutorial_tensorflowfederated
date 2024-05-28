@@ -1,8 +1,7 @@
-from dataset.IDataset import DatasetID
+from dataset.DatasetUtils import DatasetID, getDataset
 from dataset.FedDataset import FedDataset, PartitioningScheme
 from model.FedKerasModel import FedKerasModel
 from model.KerasModel import KerasModel
-from utils.Utils import Utils
 
 import tensorflow as tf
 import tensorflow_federated as tff
@@ -17,7 +16,7 @@ config = {
 
     "force_load": False,
 
-    "dataset_id": DatasetID.FloodNet,
+    "dataset_id": DatasetID.Mnist,
 
     "train_response_path": "./data/train_response.csv",
     "val_response_path": "./data/val_response.csv",
@@ -32,12 +31,9 @@ config = {
     "flooded_threshold": 1/4,
 
     "part_scheme": PartitioningScheme.ROUND_ROBIN,
-    "num_workers": 2,
-    "batch_size": 6,
+    "num_workers": 4,
 
-    "model": "c96_c32_dr25",
     "num_train_rounds": 10,
-    "learning_rate": 0.00005,
 
     "log_dir": "./log/training",
 }
@@ -48,11 +44,11 @@ def trainLocalKeras(dataset, config):
     keras_model = KerasModel(config)
     keras_model.fit(dataset)
 
-    print(keras_model.predict(dataset.train)[1:10])
-    print(list(map(lambda e: e[1], list(dataset.train.as_numpy_iterator())[0:2])))
+    # print(keras_model.predict(dataset.train)[1:10])
+    # print(list(map(lambda e: e[1], list(dataset.train.as_numpy_iterator())[0:2])))
 
-    print(keras_model.predict(dataset.val)[1:10])
-    print(list(map(lambda e: e[1], list(dataset.val.as_numpy_iterator())[0:2])))
+    # print(keras_model.predict(dataset.val)[1:10])
+    # print(list(map(lambda e: e[1], list(dataset.val.as_numpy_iterator())[0:2])))
 
     # evaluate the model
     evaluation_metrics = keras_model.evaluate(dataset.val)
@@ -64,8 +60,6 @@ def trainFedKeras(dataset, fed_dataset, config):
     # create and fit the federated model
     fed_keras_model = FedKerasModel(config)
     fed_keras_model.fit(fed_dataset)
-
-    print(fed_keras_model.predict(dataset.train)[1:10])
 
     # evaluate the model
     evaluation_metrics = fed_keras_model.evaluate(fed_dataset.val)
@@ -88,7 +82,7 @@ def main(argv):
             config["force_load"] = True
 
     # obtain the dataset (either load or compute the response labels)
-    dataset = Utils.getDataset(config)
+    dataset = getDataset(config)
     dataset.load()
 
     # construct data partitions for federated execution
@@ -98,8 +92,8 @@ def main(argv):
 
     dataset.batch()
 
-    # trainFedKeras(dataset, fed_dataset, config)
-    trainLocalKeras(dataset, config)
+    trainFedKeras(dataset, fed_dataset, config)
+    # trainLocalKeras(dataset, config)
 
     # model_abbrvs = [
     #     "c10_avg_dr25",

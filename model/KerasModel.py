@@ -1,22 +1,20 @@
 from model.IModel import IModel
-from utils.Utils import Utils
+from model.ModelBuilderUtils import getModelBuilder, getLoss, getMetrics, getOptimizer
 
 import tensorflow as tf
 
 class KerasModel(IModel):
     @classmethod
     def createKerasModel(self_class, data, config):
-        model_builder = Utils.getModelBuilder(config)
+        model_builder = getModelBuilder(config)
         keras_model = model_builder.buildModel(data)
         return keras_model
 
     def fit(self, dataset):
         self.model = self.createKerasModel(dataset.train, self.config)
-        self.model.compile(optimizer = tf.keras.optimizers.SGD(
-            learning_rate=self.config["learning_rate"]),
-            loss = tf.keras.losses.BinaryCrossentropy(),
-            metrics = [tf.keras.metrics.BinaryCrossentropy(),
-                tf.keras.metrics.BinaryAccuracy()])
+        self.model.compile(optimizer = getOptimizer(),
+            loss = getLoss(self.config),
+            metrics = getMetrics(self.config))
 
         # set logging for tensorboard visualization
         logdir = self.config["log_dir"] # delete any previous results
