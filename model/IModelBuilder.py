@@ -23,3 +23,15 @@ class IModelBuilder(ABC):
     @abstractmethod
     def getOptimizer(self):
         pass
+
+    @abstractmethod
+    def getFedLearningRates(self):
+        pass
+
+    @abstractmethod
+    def getFedKerasOptimizers(self):
+        pass
+
+    @abstractmethod
+    def getFedCoreOptimizers(self):
+        pass

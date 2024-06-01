@@ -20,3 +20,12 @@ def getLearningRate(config):
 
 def getOptimizer(config):
     return getModelBuilder(config).getOptimizer()
+
+def getFedLearningRates(config):
+    return getModelBuilder(config).getFedLearningRates()
+
+def getFedKerasOptimizers(config):
+    return getModelBuilder(config).getFedKerasOptimizers()
+
+def getFedCoreOptimizers(config):
+    return getModelBuilder(config).getFedCoreOptimizers()

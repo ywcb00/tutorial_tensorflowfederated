@@ -1,15 +1,12 @@
 from dataset.DatasetUtils import DatasetID, getDataset
 from dataset.FedDataset import FedDataset, PartitioningScheme
+from model.FedCoreModel import FedCoreModel
 from model.FedKerasModel import FedKerasModel
 from model.KerasModel import KerasModel
 
 import tensorflow as tf
-import tensorflow_federated as tff
-import matplotlib.pyplot as plt
 import sys
 import getopt
-import os
-import csv
 
 config = {
     "seed": 13,
@@ -67,6 +64,16 @@ def trainFedKeras(dataset, fed_dataset, config):
     evaluation_metrics = fed_keras_model.evaluateCentralized(dataset.val)
     print(evaluation_metrics)
 
+def trainFedCore(dataset, fed_dataset, config):
+    # ===== Federated Training =====
+    # create and fit the federated model
+    fed_core_model = FedCoreModel(config)
+    fed_core_model.fit(fed_dataset)
+
+    # evaluate the model
+    evaluation_metrics = fed_core_model.evaluateCentralized(dataset.val)
+    print(evaluation_metrics)
+
 def main(argv):
     try:
         opts, args = getopt.getopt(argv[1:], "hl", ["help", "forceload"])
@@ -92,8 +99,9 @@ def main(argv):
 
     dataset.batch()
 
-    trainFedKeras(dataset, fed_dataset, config)
+    # trainFedKeras(dataset, fed_dataset, config)
     # trainLocalKeras(dataset, config)
+    trainFedCore(dataset, fed_dataset, config)
 
     # model_abbrvs = [
     #     "c10_avg_dr25",

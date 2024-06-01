@@ -1,6 +1,6 @@
 from model.IModel import IModel
 from model.KerasModel import KerasModel
-from model.ModelBuilderUtils import getLoss, getMetrics
+from model.ModelBuilderUtils import getLoss, getMetrics, getFedKerasOptimizers
 
 import tensorflow as tf
 import tensorflow_federated as tff
@@ -21,8 +21,8 @@ class FedKerasModel(IModel):
             return self.createFedModel(fed_dataset.train, self.config)
 
         training_process = tff.learning.algorithms.build_weighted_fed_avg(cfm,
-            client_optimizer_fn=lambda: tf.keras.optimizers.SGD(learning_rate=0.02),
-            server_optimizer_fn=lambda: tf.keras.optimizers.SGD(learning_rate=1.0))
+            server_optimizer_fn=lambda: getFedKerasOptimizers(self.config)[0],
+            client_optimizer_fn=lambda: getFedKerasOptimizers(self.config)[1])
 
         # set logging for tensorboard visualization
         logdir = self.config["log_dir"] # delete any previous results
@@ -53,7 +53,7 @@ class FedKerasModel(IModel):
         return predictions
 
     @classmethod
-    def getTrainedKerasModel(self, data, state, config):
+    def getTrainedKerasModel(self_class, data, state, config):
         keras_model = KerasModel.createKerasModel(data, config)
         keras_model.compile(loss = getLoss(config),
             metrics = getMetrics(config))

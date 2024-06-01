@@ -1,11 +1,14 @@
 from model.IModelBuilder import IModelBuilder
 
 import tensorflow as tf
+import tensorflow_federated as tff
 
 class MnistModelBuilder(IModelBuilder):
     def __init__(self, config):
         super().__init__(config)
         self.learning_rate = 0.001
+        self.server_learning_rate = 0.05
+        self.client_learning_rate = 0.01
 
     def buildModel(self, data):
         # construct a sequential model
@@ -47,3 +50,17 @@ class MnistModelBuilder(IModelBuilder):
     def getOptimizer(self):
         return tf.keras.optimizers.SGD(learning_rate=self.getLearningRate())
 
+    def getFedLearningRates(self):
+        return self.server_learning_rate, self.client_learning_rate
+
+    def getFedKerasOptimizers(self):
+        server_lr, client_lr = self.getFedLearningRates()
+        server_optimizer = tf.keras.optimizers.SGD(learning_rate=server_lr)
+        client_optimizer = tf.keras.optimizers.SGD(learning_rate=client_lr)
+        return server_optimizer, client_optimizer
+
+    def getFedCoreOptimizers(self):
+        server_lr, client_lr = self.getFedLearningRates()
+        server_optimizer = tff.learning.optimizers.build_sgdm(learning_rate=server_lr)
+        client_optimizer = tff.learning.optimizers.build_sgdm(learning_rate=client_lr)
+        return server_optimizer, client_optimizer
