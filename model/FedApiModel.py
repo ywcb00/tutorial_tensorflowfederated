@@ -2,10 +2,16 @@ from model.IModel import IModel
 from model.KerasModel import KerasModel
 from model.ModelBuilderUtils import getLoss, getMetrics, getFedKerasOptimizers
 
+import logging
 import tensorflow as tf
 import tensorflow_federated as tff
 
-class FedKerasModel(IModel):
+class FedApiModel(IModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.logger = logging.getLogger("model/FedApiModel")
+        self.logger.setLevel(logging.DEBUG)
+
     @classmethod
     def createFedModel(self_class, fed_data, config):
         keras_model = KerasModel.createKerasModel(fed_data[0], config)
@@ -17,6 +23,8 @@ class FedKerasModel(IModel):
         return fed_model
 
     def fit(self, fed_dataset):
+        self.logger.info(f'Fitting federated model with {self.config["num_workers"]} workers')
+
         def cfm():
             return self.createFedModel(fed_dataset.train, self.config)
 
@@ -31,19 +39,19 @@ class FedKerasModel(IModel):
         except tf.errors.NotFoundError as e:
             pass # ignore if no previous results to delete
         log_summary_writer = tf.summary.create_file_writer(logdir)
+        log_summary_writer.set_as_default()
 
         training_state = training_process.initialize()
 
-        with log_summary_writer.as_default():
-            for n_round in range(self.config["num_train_rounds"]):
-                training_result = training_process.next(training_state, fed_dataset.train)
-                training_state = training_result.state
-                training_metrics = training_result.metrics
+        for n_round in range(self.config["num_train_rounds"]):
+            training_result = training_process.next(training_state, fed_dataset.train)
+            training_state = training_result.state
+            training_metrics = training_result.metrics
 
-                for name, value in training_metrics['client_work']['train'].items():
-                    tf.summary.scalar(name, value, step=n_round)
+            for name, value in training_metrics['client_work']['train'].items():
+                tf.summary.scalar(name, value, step=n_round)
 
-                print(f'Training round {n_round}: {training_metrics}')
+            self.logger.debug(f'Training round {n_round}: {training_metrics}')
 
         self.state = (training_process, training_result)
 
@@ -62,7 +70,9 @@ class FedKerasModel(IModel):
         return keras_model
 
     def evaluate(self, data):
-        return self.evaluateDecentralized(data)
+        evaluation_metrics = self.evaluateDecentralized(data)
+        self.logger.info(f'Evaluation resulted in {evaluation_metrics}')
+        return evaluation_metrics
 
     def evaluateDecentralized(self, fed_data):
         def cfm():

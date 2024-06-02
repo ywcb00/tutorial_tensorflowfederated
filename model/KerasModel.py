@@ -1,9 +1,15 @@
 from model.IModel import IModel
 from model.ModelBuilderUtils import getModelBuilder, getLoss, getMetrics, getOptimizer
 
+import logging
 import tensorflow as tf
 
 class KerasModel(IModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.logger = logging.getLogger("model/KerasModel")
+        self.logger.setLevel(logging.DEBUG)
+
     @classmethod
     def createKerasModel(self_class, data, config):
         model_builder = getModelBuilder(config)
@@ -11,10 +17,12 @@ class KerasModel(IModel):
         return keras_model
 
     def fit(self, dataset):
+        self.logger.info(f'Fitting local model with {dataset.train.cardinality()} train instances')
+
         self.model = self.createKerasModel(dataset.train, self.config)
-        self.model.compile(optimizer = getOptimizer(),
-            loss = getLoss(self.config),
-            metrics = getMetrics(self.config))
+        self.model.compile(optimizer=getOptimizer(self.config),
+            loss=getLoss(self.config),
+            metrics=getMetrics(self.config))
 
         # set logging for tensorboard visualization
         logdir = self.config["log_dir"] # delete any previous results
@@ -41,7 +49,9 @@ class KerasModel(IModel):
         return predictions
 
     def evaluate(self, data):
-        return self.evaluateKerasModel(self.model, data)
+        evaluation_metrics = self.evaluateKerasModel(self.model, data)
+        self.logger.info(f'Evaluation on {data.cardinality()} instances resulted in {evaluation_metrics}')
+        return evaluation_metrics
 
     @classmethod
     def evaluateKerasModel(self_class, keras_model, data):

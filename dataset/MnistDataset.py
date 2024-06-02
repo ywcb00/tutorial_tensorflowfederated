@@ -1,17 +1,22 @@
 from dataset.IDataset import IDataset
 
-import tensorflow as tf
+import logging
 import numpy as np
+import tensorflow as tf
 
 class MnistDataset(IDataset):
     def __init__(self, config):
         super().__init__(config, batch_size=30)
+        self.logger = logging.getLogger("dataset/MnistDataset")
+        self.logger.setLevel(logging.DEBUG)
 
     def load(self):
         train, val, test = self.getDataset(self.config)
         self.train = train
         self.val = val
         self.test = test
+        self.logger.info(f'Found {train.cardinality().numpy()} train instances, {val.cardinality().numpy()} '
+            + f'validation instances, and {test.cardinality().numpy()} test instances.')
 
     @classmethod
     def getDataset(self_class, config):
@@ -43,8 +48,5 @@ class MnistDataset(IDataset):
         # split train dataset into train and validation set
         train, val = tf.keras.utils.split_dataset(train, left_size=0.9, right_size=None,
             shuffle=True, seed=config["seed"])
-
-        print(f'Found {train.cardinality().numpy()} train instances, {val.cardinality().numpy()} '
-            + f'validation instances, and {test.cardinality().numpy()} test instances.')
 
         return train, val, test

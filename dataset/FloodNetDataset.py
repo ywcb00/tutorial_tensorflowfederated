@@ -1,18 +1,23 @@
 from dataset.IDataset import IDataset
 
-import tensorflow as tf
-import os
 import csv
+import logging
+import os
+import tensorflow as tf
 
 class FloodNetDataset(IDataset):
     def __init__(self, config):
         super().__init__(config, batch_size=2)
+        self.logger = logging.getLogger("dataset/FloodNetDataset")
+        self.logger.setLevel(logging.DEBUG)
 
     def load(self):
         train, val, test = self.getDataset(self.config)
         self.train = train
         self.val = val
         self.test = test
+        self.logger.info(f'Found {train.cardinality().numpy()} train instances, {val.cardinality().numpy()} '
+            + f'validation instances, and {test.cardinality().numpy()} test instances.')
 
     @classmethod
     def getDataset(self_class, config):
@@ -78,9 +83,6 @@ class FloodNetDataset(IDataset):
         train = train.take(250)
         val = val.take(100)
         test = test.take(40)
-
-        print(f'Found {train.cardinality().numpy()} train instances, {val.cardinality().numpy()} '
-            + f'validation instances, and {test.cardinality().numpy()} test instances.')
 
         return train, val, test
 
@@ -159,9 +161,6 @@ class FloodNetDataset(IDataset):
             for key, val in test_response.items():
                 writer.writerow([key, val])
 
-        print(f'Wrote {len(train_response)} training labels, {len(val_response)} '
-            + f'validation labels, and {len(test_response)} test labels to disk.')
-
         return train_response, val_response, test_response
 
     @classmethod
@@ -184,8 +183,5 @@ class FloodNetDataset(IDataset):
             next(reader) # omit the header
             for row in reader:
                 test_response[row[0]] = (row[1] == "True")
-
-        print(f'Read {len(train_response)} training labels, {len(val_response)} '
-            + f'validation labels, and {len(test_response)} test labels from disk.')
 
         return train_response, val_response, test_response

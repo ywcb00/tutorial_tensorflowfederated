@@ -3,11 +3,17 @@ from model.KerasModel import KerasModel
 from model.ModelBuilderUtils import getLoss, getMetrics, getFedCoreOptimizers
 
 import attrs
+import logging
 import tensorflow as tf
 import tensorflow_federated as tff
 from typing import Any
 
 class FedCoreModel(IModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.logger = logging.getLogger("model/FedCoreModel")
+        self.logger.setLevel(logging.DEBUG)
+
     @classmethod
     def createFedModel(self_class, fed_data, config):
         keras_model = KerasModel.createKerasModel(fed_data[0], config)
@@ -19,6 +25,8 @@ class FedCoreModel(IModel):
         return fed_model
 
     def fit(self, fed_dataset):
+        self.logger.info(f'Fitting federated model with {self.config["num_workers"]} workers')
+
         def cfm():
             keras_model = KerasModel.createKerasModel(fed_dataset.train[0], self.config)
             fed_model = tff.learning.models.from_keras_model(
@@ -126,6 +134,7 @@ class FedCoreModel(IModel):
         self.state = fedavg_process.initialize()
         for round_idx in range(self.config["num_train_rounds"]):
             self.state = fedavg_process.next(self.state, fed_dataset.train)
+            # TODO: evaluate decentralized on train data and log the result for tensorboard
 
     @classmethod
     def getTrainedKerasModel(self_class, data, state, config):
@@ -144,7 +153,9 @@ class FedCoreModel(IModel):
         return predictions
 
     def evaluate(self, data):
-        return self.evaluateCentralized(data)
+        evaluation_metrics = self.evaluateCentralized(data)
+        self.logger.info(f'Evaluation resulted in {evaluation_metrics}')
+        return evaluation_metrics
 
     # def evaluateDecentralized(self, fed_data):
     #     def cfm():

@@ -1,4 +1,5 @@
 from enum import Enum
+import logging
 
 class PartitioningScheme(Enum):
     RANGE       = 1
@@ -11,8 +12,12 @@ class FedDataset():
         self.train = None
         self.val = None
         self.test = None
+        self.logger = logging.getLogger("dataset/FedDataset")
+        self.logger.setLevel(logging.DEBUG)
 
     def construct(self, dataset):
+        self.logger.info(f'Partitioning the dataset to {self.config["num_workers"]} ' +
+            f'partitions with {self.config["part_scheme"].name} scheme')
         # partition the data
         self.train = self.partitionData(dataset.train, self.config)
         self.val = self.partitionData(dataset.val, self.config)

@@ -1,7 +1,7 @@
 from dataset.DatasetUtils import DatasetID, getDataset
 from dataset.FedDataset import FedDataset, PartitioningScheme
 from model.FedCoreModel import FedCoreModel
-from model.FedKerasModel import FedKerasModel
+from model.FedApiModel import FedApiModel
 from model.KerasModel import KerasModel
 
 import tensorflow as tf
@@ -49,24 +49,24 @@ def trainLocalKeras(dataset, config):
 
     # evaluate the model
     evaluation_metrics = keras_model.evaluate(dataset.val)
-    print(evaluation_metrics)
+    # print(evaluation_metrics)
     return evaluation_metrics
 
-def trainFedKeras(dataset, fed_dataset, config):
+def trainFedApi(dataset, fed_dataset, config):
     # ===== Federated Training =====
-    # create and fit the federated model
-    fed_keras_model = FedKerasModel(config)
-    fed_keras_model.fit(fed_dataset)
+    # create and fit the federated model with tff api
+    fed_api_model = FedApiModel(config)
+    fed_api_model.fit(fed_dataset)
 
     # evaluate the model
-    evaluation_metrics = fed_keras_model.evaluate(fed_dataset.val)
+    evaluation_metrics = fed_api_model.evaluate(fed_dataset.val)
     print(evaluation_metrics)
-    evaluation_metrics = fed_keras_model.evaluateCentralized(dataset.val)
+    evaluation_metrics = fed_api_model.evaluateCentralized(dataset.val)
     print(evaluation_metrics)
 
 def trainFedCore(dataset, fed_dataset, config):
     # ===== Federated Training =====
-    # create and fit the federated model
+    # create and fit the federated model with tff core
     fed_core_model = FedCoreModel(config)
     fed_core_model.fit(fed_dataset)
 
@@ -99,9 +99,9 @@ def main(argv):
 
     dataset.batch()
 
-    # trainFedKeras(dataset, fed_dataset, config)
-    # trainLocalKeras(dataset, config)
+    trainLocalKeras(dataset, config)
     trainFedCore(dataset, fed_dataset, config)
+    trainFedApi(dataset, fed_dataset, config)
 
     # model_abbrvs = [
     #     "c10_avg_dr25",
