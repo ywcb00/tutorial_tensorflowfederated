@@ -24,8 +24,8 @@ def getOptimizer(config):
 def getFedLearningRates(config):
     return getModelBuilder(config).getFedLearningRates()
 
-def getFedKerasOptimizers(config):
-    return getModelBuilder(config).getFedKerasOptimizers()
+def getFedApiOptimizers(config):
+    return getModelBuilder(config).getFedApiOptimizers()
 
 def getFedCoreOptimizers(config):
     return getModelBuilder(config).getFedCoreOptimizers()

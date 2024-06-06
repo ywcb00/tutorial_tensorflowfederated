@@ -1,6 +1,6 @@
 from model.IModel import IModel
 from model.KerasModel import KerasModel
-from model.ModelBuilderUtils import getLoss, getMetrics, getFedKerasOptimizers
+from model.ModelBuilderUtils import getLoss, getMetrics, getFedApiOptimizers
 
 import logging
 import tensorflow as tf
@@ -29,8 +29,8 @@ class FedApiModel(IModel):
             return self.createFedModel(fed_dataset.train, self.config)
 
         training_process = tff.learning.algorithms.build_weighted_fed_avg(cfm,
-            server_optimizer_fn=lambda: getFedKerasOptimizers(self.config)[0],
-            client_optimizer_fn=lambda: getFedKerasOptimizers(self.config)[1])
+            server_optimizer_fn=lambda: getFedApiOptimizers(self.config)[0],
+            client_optimizer_fn=lambda: getFedApiOptimizers(self.config)[1])
 
         # set logging for tensorboard visualization
         logdir = self.config["log_dir"] # delete any previous results
@@ -80,7 +80,7 @@ class FedApiModel(IModel):
 
         evaluation_process = tff.learning.build_federated_evaluation(cfm)
         model_weights = self.state[0].get_model_weights(self.state[1].state)
-        evaluation_metrics = evaluation_process(model_weights, fed_data)
+        evaluation_metrics = evaluation_process(model_weights, fed_data)['eval']
         return evaluation_metrics
 
     def evaluateCentralized(self, data):

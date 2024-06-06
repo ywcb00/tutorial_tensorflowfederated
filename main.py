@@ -30,7 +30,7 @@ config = {
     "part_scheme": PartitioningScheme.ROUND_ROBIN,
     "num_workers": 4,
 
-    "num_train_rounds": 10,
+    "num_train_rounds": 20,
 
     "log_dir": "./log/training",
 }
@@ -41,15 +41,8 @@ def trainLocalKeras(dataset, config):
     keras_model = KerasModel(config)
     keras_model.fit(dataset)
 
-    # print(keras_model.predict(dataset.train)[1:10])
-    # print(list(map(lambda e: e[1], list(dataset.train.as_numpy_iterator())[0:2])))
-
-    # print(keras_model.predict(dataset.val)[1:10])
-    # print(list(map(lambda e: e[1], list(dataset.val.as_numpy_iterator())[0:2])))
-
     # evaluate the model
     evaluation_metrics = keras_model.evaluate(dataset.val)
-    # print(evaluation_metrics)
     return evaluation_metrics
 
 def trainFedApi(dataset, fed_dataset, config):
@@ -60,9 +53,8 @@ def trainFedApi(dataset, fed_dataset, config):
 
     # evaluate the model
     evaluation_metrics = fed_api_model.evaluate(fed_dataset.val)
-    print(evaluation_metrics)
-    evaluation_metrics = fed_api_model.evaluateCentralized(dataset.val)
-    print(evaluation_metrics)
+    # evaluation_metrics = fed_api_model.evaluateCentralized(dataset.val)
+    return evaluation_metrics
 
 def trainFedCore(dataset, fed_dataset, config):
     # ===== Federated Training =====
@@ -71,8 +63,9 @@ def trainFedCore(dataset, fed_dataset, config):
     fed_core_model.fit(fed_dataset)
 
     # evaluate the model
-    evaluation_metrics = fed_core_model.evaluateCentralized(dataset.val)
-    print(evaluation_metrics)
+    evaluation_metrics = fed_core_model.evaluate(fed_dataset.val)
+    # evaluation_metrics = fed_core_model.evaluateCentralized(dataset.val)
+    return evaluation_metrics
 
 def main(argv):
     try:
@@ -99,9 +92,10 @@ def main(argv):
 
     dataset.batch()
 
-    trainLocalKeras(dataset, config)
-    trainFedCore(dataset, fed_dataset, config)
-    trainFedApi(dataset, fed_dataset, config)
+    evaluations = dict()
+    evaluations["keras"] = trainLocalKeras(dataset, config)
+    evaluations["fedapi"] = trainFedApi(dataset, fed_dataset, config)
+    evaluations["fedcore"] = trainFedCore(dataset, fed_dataset, config)
 
     # model_abbrvs = [
     #     "c10_avg_dr25",

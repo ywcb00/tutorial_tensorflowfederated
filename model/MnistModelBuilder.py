@@ -53,7 +53,7 @@ class MnistModelBuilder(IModelBuilder):
     def getFedLearningRates(self):
         return self.server_learning_rate, self.client_learning_rate
 
-    def getFedKerasOptimizers(self):
+    def getFedApiOptimizers(self):
         server_lr, client_lr = self.getFedLearningRates()
         server_optimizer = tf.keras.optimizers.SGD(learning_rate=server_lr)
         client_optimizer = tf.keras.optimizers.SGD(learning_rate=client_lr)

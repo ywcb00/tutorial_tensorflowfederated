@@ -29,7 +29,7 @@ class IModelBuilder(ABC):
         pass
 
     @abstractmethod
-    def getFedKerasOptimizers(self):
+    def getFedApiOptimizers(self):
         pass
 
     @abstractmethod

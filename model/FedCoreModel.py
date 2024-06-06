@@ -1,6 +1,6 @@
 from model.IModel import IModel
 from model.KerasModel import KerasModel
-from model.ModelBuilderUtils import getLoss, getMetrics, getFedCoreOptimizers
+from model.ModelBuilderUtils import getLoss, getMetrics, getFedCoreOptimizers, getOptimizer
 
 import attrs
 import logging
@@ -153,18 +153,103 @@ class FedCoreModel(IModel):
         return predictions
 
     def evaluate(self, data):
-        evaluation_metrics = self.evaluateCentralized(data)
+        evaluation_metrics = self.evaluateDecentralized(data)
         self.logger.info(f'Evaluation resulted in {evaluation_metrics}')
         return evaluation_metrics
 
-    # def evaluateDecentralized(self, fed_data):
-    #     def cfm():
-    #         return self.createFedModel(fed_data, self.config)
+    def evaluateDecentralized(self, fed_data):
+        server_optimizer, client_optimizer = getFedCoreOptimizers(self.config)
 
-    #     evaluation_process = tff.learning.build_federated_evaluation(cfm)
-    #     model_weights = self.state[0].get_model_weights(self.state[1].state)
-    #     evaluation_metrics = evaluation_process(model_weights, fed_data)
-    #     return evaluation_metrics
+        def cfm():
+            keras_model = KerasModel.createKerasModel(fed_data[0], self.config)
+            fed_model = tff.learning.models.from_keras_model(
+                keras_model,
+                input_spec = fed_data[0].element_spec,
+                loss = getLoss(self.config),
+                metrics = getMetrics(self.config))
+            return fed_model
+
+        def gm():
+            metrics = getMetrics(self.config)
+            return metrics
+
+        @tf.function
+        def client_evaluate(fed_model, metric_objects, data, server_weights):
+            # initialize the model with the trained weights
+            client_weights = fed_model.trainable_variables
+            tf.nest.map_structure(lambda cw, sw: cw.assign(sw),
+                client_weights, server_weights)
+
+            for img_batch, lab_batch in iter(data):
+                predictions = fed_model.predict_on_batch(img_batch, training=False)
+
+                # iterate the metrics and update their state w/ current results
+                for mtrc in metric_objects:
+                    mtrc.update_state(lab_batch, predictions)
+
+            total_metrics = tf.stack([mtrc.result() for mtrc in metric_objects])
+            return total_metrics
+
+        @attrs.define(eq=False, frozen=True)
+        class ServerState(object):
+            trainable_weights: Any
+            optimizer_state: Any
+
+        @tff.tf_computation
+        def server_init():
+            model = cfm()
+            trainable_tensor_specs = tf.nest.map_structure(
+                lambda v: tf.TensorSpec(v.shape, v.dtype), model.trainable_variables)
+            optimizer_state = server_optimizer.initialize(trainable_tensor_specs)
+            return ServerState(trainable_weights=model.trainable_variables,
+                optimizer_state=optimizer_state)
+
+        @tff.federated_computation
+        def server_init_tff():
+            return tff.federated_value(server_init(), tff.SERVER)
+
+        server_state_t = server_init.type_signature.result
+        trainable_weights_t = server_state_t.trainable_weights
+
+        tf_data_t = tff.SequenceType(tff.types.tensorflow_to_type(cfm().input_spec))
+
+        @tff.tf_computation(tf_data_t, trainable_weights_t)
+        def client_evaluate_fn(data, server_weights):
+            fed_model = cfm()
+            metric_objects = gm()
+            evaluation_metrics = client_evaluate(fed_model, metric_objects, data, server_weights)
+            return evaluation_metrics
+
+        federated_server_state_t = tff.FederatedType(server_state_t, tff.SERVER)
+        federated_data_t = tff.FederatedType(tf_data_t, tff.CLIENTS)
+
+        @tff.federated_computation(federated_server_state_t, federated_data_t)
+        def performEvaluation(server_state, federated_data):
+            # broadcast the weights to the federated workers
+            server_weights_at_client = tff.federated_broadcast(
+                server_state.trainable_weights)
+            # perform local evaluation on the federated workers with the trained model
+            evaluation_metrics_client = tff.federated_map(
+                client_evaluate_fn, (federated_data, server_weights_at_client))
+            # aggregate the evaluation metrics from the individual federated workers
+            evaluation_metrics_agg = tff.federated_mean(evaluation_metrics_client)
+            evaluation_output = tff.templates.MeasuredProcessOutput(
+                state=server_state,
+                result=0,
+                measurements=evaluation_metrics_agg)
+            return evaluation_output
+
+        eval_process = tff.templates.MeasuredProcess(initialize_fn=server_init_tff,
+            next_fn=performEvaluation,
+            next_is_multi_arg=True)
+
+        eval_process.initialize()
+        evaluation_metrics = eval_process.next(self.state, fed_data).measurements
+        metrics = gm()
+        evaluation_metrics = {metrics[idx].name: em for idx, em in enumerate(evaluation_metrics)}
+        return evaluation_metrics
+
+
 
     def evaluateCentralized(self, data):
         keras_model = self.getTrainedKerasModel(data, self.state, self.config)
