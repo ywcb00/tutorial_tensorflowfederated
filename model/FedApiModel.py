@@ -1,6 +1,7 @@
 from model.IModel import IModel
 from model.KerasModel import KerasModel
 from model.ModelBuilderUtils import getLoss, getMetrics, getFedApiOptimizers
+from utils.Utils import Utils
 
 import logging
 import tensorflow as tf
@@ -43,15 +44,21 @@ class FedApiModel(IModel):
 
         training_state = training_process.initialize()
 
+        train_eval = dict()
         for n_round in range(self.config["num_train_rounds"]):
             training_result = training_process.next(training_state, fed_dataset.train)
             training_state = training_result.state
-            training_metrics = training_result.metrics
+            training_metrics = training_result.metrics['client_work']['train']
 
-            for name, value in training_metrics['client_work']['train'].items():
+            # tensorboard logging
+            for name, value in training_metrics.items():
                 tf.summary.scalar(name, value, step=n_round)
 
-            self.logger.debug(f'Training round {n_round}: {training_metrics}')
+            # logging in console output
+            if(self.config["log_level"] <= logging.DEBUG):
+                train_eval[n_round] = training_metrics
+
+        self.logger.debug(Utils.printEvaluations(train_eval, self.config, first_col_name="Round"))
 
         self.state = (training_process, training_result)
 

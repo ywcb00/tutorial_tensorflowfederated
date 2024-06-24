@@ -71,6 +71,9 @@ def trainFedCore(dataset, fed_dataset, config):
     return evaluation_metrics
 
 def main(argv):
+    logger = logging.getLogger("main.py")
+    logger.setLevel(config["log_level"])
+
     try:
         opts, args = getopt.getopt(argv[1:], "hl", ["help", "forceload"])
     except getopt.GetoptError:
@@ -100,7 +103,7 @@ def main(argv):
     evaluations["fedapi"] = trainFedApi(dataset, fed_dataset, config)
     evaluations["fedcore"] = trainFedCore(dataset, fed_dataset, config)
 
-    Utils.printEvaluations(evaluations, config)
+    logger.info(Utils.printEvaluations(evaluations, config))
 
     # model_abbrvs = [
     #     "c10_avg_dr25",
