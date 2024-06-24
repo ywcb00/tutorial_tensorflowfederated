@@ -9,7 +9,7 @@ class FloodNetDataset(IDataset):
     def __init__(self, config):
         super().__init__(config, batch_size=2)
         self.logger = logging.getLogger("dataset/FloodNetDataset")
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(config["log_level"])
 
     def load(self):
         train, val, test = self.getDataset(self.config)

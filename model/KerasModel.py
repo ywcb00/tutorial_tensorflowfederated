@@ -8,7 +8,7 @@ class KerasModel(IModel):
     def __init__(self, config):
         super().__init__(config)
         self.logger = logging.getLogger("model/KerasModel")
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(config["log_level"])
 
     @classmethod
     def createKerasModel(self_class, data, config):
@@ -38,6 +38,7 @@ class KerasModel(IModel):
             epochs=self.config["num_train_rounds"],
             validation_data=None, # we have a separate validation split
             shuffle=False,
+            verbose=2,
             callbacks=[logging_callback])
 
     def predict(self, data):
@@ -55,6 +56,6 @@ class KerasModel(IModel):
 
     @classmethod
     def evaluateKerasModel(self_class, keras_model, data):
-        evaluation_scalars = keras_model.evaluate(data)
+        evaluation_scalars = keras_model.evaluate(data, verbose=2)
         evaluation_metrics = dict(zip(keras_model.metrics_names, evaluation_scalars))
         return evaluation_metrics

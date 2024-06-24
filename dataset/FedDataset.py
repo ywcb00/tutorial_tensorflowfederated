@@ -13,7 +13,7 @@ class FedDataset():
         self.val = None
         self.test = None
         self.logger = logging.getLogger("dataset/FedDataset")
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(config["log_level"])
 
     def construct(self, dataset):
         self.logger.info(f'Partitioning the dataset to {self.config["num_workers"]} ' +

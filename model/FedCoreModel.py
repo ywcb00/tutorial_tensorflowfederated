@@ -12,7 +12,7 @@ class FedCoreModel(IModel):
     def __init__(self, config):
         super().__init__(config)
         self.logger = logging.getLogger("model/FedCoreModel")
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(config["log_level"])
 
     @classmethod
     def createFedModel(self_class, fed_data, config):

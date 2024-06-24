@@ -7,8 +7,8 @@ class MnistModelBuilder(IModelBuilder):
     def __init__(self, config):
         super().__init__(config)
         self.learning_rate = 0.001
-        self.server_learning_rate = 0.05
-        self.client_learning_rate = 0.01
+        self.server_learning_rate = 1.
+        self.client_learning_rate = 0.02
 
     def buildModel(self, data):
         # construct a sequential model

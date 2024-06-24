@@ -3,10 +3,12 @@ from dataset.FedDataset import FedDataset, PartitioningScheme
 from model.FedCoreModel import FedCoreModel
 from model.FedApiModel import FedApiModel
 from model.KerasModel import KerasModel
+from utils.Utils import Utils
 
-import tensorflow as tf
-import sys
 import getopt
+import logging
+import sys
+import tensorflow as tf
 
 config = {
     "seed": 13,
@@ -30,9 +32,10 @@ config = {
     "part_scheme": PartitioningScheme.ROUND_ROBIN,
     "num_workers": 4,
 
-    "num_train_rounds": 20,
+    "num_train_rounds": 10,
 
     "log_dir": "./log/training",
+    "log_level": logging.DEBUG,
 }
 
 def trainLocalKeras(dataset, config):
@@ -96,6 +99,8 @@ def main(argv):
     evaluations["keras"] = trainLocalKeras(dataset, config)
     evaluations["fedapi"] = trainFedApi(dataset, fed_dataset, config)
     evaluations["fedcore"] = trainFedCore(dataset, fed_dataset, config)
+
+    Utils.printEvaluations(evaluations, config)
 
     # model_abbrvs = [
     #     "c10_avg_dr25",
