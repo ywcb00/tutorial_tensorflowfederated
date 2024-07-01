@@ -1,9 +1,9 @@
-from dataset.DatasetUtils import DatasetID, getDataset
-from dataset.FedDataset import FedDataset, PartitioningScheme
-from model.FedCoreModel import FedCoreModel
-from model.FedApiModel import FedApiModel
-from model.KerasModel import KerasModel
-from utils.Utils import Utils
+from tffdataset.DatasetUtils import DatasetID, getDataset
+from tffdataset.FedDataset import FedDataset, PartitioningScheme
+from tffmodel.FedCoreModel import FedCoreModel
+from tffmodel.FedApiModel import FedApiModel
+from tffmodel.KerasModel import KerasModel
+from tffmodel.ModelUtils import ModelUtils
 
 import getopt
 import logging
@@ -103,7 +103,7 @@ def main(argv):
     evaluations["fedapi"] = trainFedApi(dataset, fed_dataset, config)
     evaluations["fedcore"] = trainFedCore(dataset, fed_dataset, config)
 
-    logger.info(Utils.printEvaluations(evaluations, config))
+    logger.info(ModelUtils.printEvaluations(evaluations, config))
 
     # model_abbrvs = [
     #     "c10_avg_dr25",

@@ -1,0 +1,6 @@
+[submodule "tffmodel"]
+	path = tffmodel
+	url = git@github.com:ywcb00/tffmodel.git
+[submodule "tffdataset"]
+	path = tffdataset
+	url = git@github.com:ywcb00/tffdataset.git
