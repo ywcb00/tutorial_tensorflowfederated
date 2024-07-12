@@ -13,21 +13,7 @@ import tensorflow as tf
 config = {
     "seed": 13,
 
-    "force_load": False,
-
     "dataset_id": DatasetID.Mnist,
-
-    "train_response_path": "./data/train_response.csv",
-    "val_response_path": "./data/val_response.csv",
-    "test_response_path": "./data/test_response.csv",
-
-    "flooded_classes": tf.constant([
-            1, # Building-flooded
-            3, # Road-flooded
-            5, # Water
-            # 8, # Pool
-        ], dtype=tf.uint32),
-    "flooded_threshold": 1/4,
 
     "part_scheme": PartitioningScheme.ROUND_ROBIN,
     "num_workers": 4,
@@ -75,17 +61,15 @@ def main(argv):
     logger.setLevel(config["log_level"])
 
     try:
-        opts, args = getopt.getopt(argv[1:], "hl", ["help", "forceload"])
+        opts, args = getopt.getopt(argv[1:], "hl", ["help"])
     except getopt.GetoptError:
         print("Wrong usage.")
-        print("Usage:", argv[0], "[--forceload]")
+        print("Usage:", argv[0])
         sys.exit(2)
     for opt, arg in opts:
         if opt in ("-h", "--help"):
-            print("Usage:", argv[0], "[--forceload]")
+            print("Usage:", argv[0])
             sys.exit()
-        elif opt in ("-l", "--forceload"):
-            config["force_load"] = True
 
     # obtain the dataset (either load or compute the response labels)
     dataset = getDataset(config)
