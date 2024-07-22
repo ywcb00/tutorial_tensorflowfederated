@@ -28,6 +28,7 @@ def trainLocalKeras(dataset, config):
     # ===== Local Training =====
     # create and fit the local keras model
     keras_model = KerasModel(config)
+    keras_model.initModel(dataset.train)
     keras_model.fit(dataset)
 
     # evaluate the model
